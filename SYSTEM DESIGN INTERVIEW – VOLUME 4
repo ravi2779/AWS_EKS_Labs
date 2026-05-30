@@ -1,0 +1,184 @@
+SYSTEM DESIGN INTERVIEW – VOLUME 4
+
+Global AI Systems & LLM Platforms
+===================================
+
+
+Page 1 — Introduction
+
+Large-scale AI platforms combine distributed systems, GPU orchestration, massive data pipelines, and retrieval infrastructure. Unlike traditional system design, AI systems include unique constraints: model weights, token throughput, GPU memory, batching, KV cache, embeddings, and latency guarantees across regions.
+
+This volume focuses on the architecture behind global LLM platforms similar to:
+
+OpenAI ChatGPT
+Anthropic Claude
+Google Gemini
+AWS Bedrock
+Meta LlamaStack
+
+Page 2 — The AI System Design Mindset
+
+Designing AI systems requires balancing:
+
+Model constraints
+Weights are huge (2–400GB)
+GPU memory is limited (40–80GB typically)
+KV-cache increases linearly with prompt length
+Infrastructure constraints
+GPU scarcity
+Multi-region placement
+Network bandwidth for retrieval
+Latency constraints
+Token generation must begin < 200ms
+Streaming must feel natural
+Cost constraints
+GPU-hour is expensive
+Batch sizes impact utilization
+Model distillation reduces cost
+
+Page 3 — High-Level Global AI Platform (Bird’s Eye View)
+
+A global AI platform typically contains:
+
+LLM Inference Cluster (GPU)
+Embedding Service
+Vector DB or Hybrid Search
+Orchestration Layer (router + load balancer)
+RAG Pipeline
+Safety & Moderation Stack
+User Data Store
+Observability & Telemetry
+Multi-region DR / failover
+
+Key challenge: Everything must work across regions reliably.
+
+Page 4 — LLM Inference Pipeline Overview
+
+The typical inference steps:
+
+Request enters global load balancer
+Tenant routing & auth
+Prompt preprocessing
+Tokenization
+Truncation
+Context normalization
+Select model version & region
+KV-cache warm-up / reuse
+GPU inference execution
+Token streaming back to client
+Post-processing
+Logging & safety checks
+
+This pipeline must operate at scale: millions of daily requests.
+
+Page 5 — GPU Cluster Architecture
+
+GPU clusters are usually grouped:
+
+Inference nodes (A100/H100)
+Inference pods (8–16 GPUs)
+High-speed interconnect—NVLink / InfiniBand
+Model Parallelism:
+Tensor parallel
+Pipeline parallel
+Fully-sharded data parallel
+
+Goal: Maximize GPU utilization. GPU idle time = wasted $$.
+
+Techniques used:
+
+Request batching
+Speculative decoding
+FlashAttention
+KV cache compression
+Page 6 — KV Cache & Token Throughput
+
+The KV cache stores attention keys/values for each generated token.
+
+Long prompts → huge KV memory
+Larger models → more KV per token
+Multi-user batching → increased reuse opportunities
+
+If a model has:
+
+70B parameters
+Generates 100 tokens
+With 8192 context window
+
+KV cache can exceed 10–20GB per session.
+
+This is why LLMs scale differently from normal stateless services.
+
+Page 7 — Multi-Region Architecture
+
+AI systems must operate across:
+
+US East
+US West
+Europe
+Asia
+Middle East
+
+Key features:
+
+Distributed vector indexes
+Region-local inference clusters
+Async replication
+Failover strategies
+Model weight distribution via blob storage
+
+Hardest challenge:
+Keeping embeddings + indexes + safety classifiers + model snapshots consistent across regions.
+
+Page 8 — Vector Database Architecture
+
+Global vector DBs (Pinecone-like, FAISS-based, or Qdrant-like) support:
+
+Sharding (by docID, tenant, or embedding hash)
+HNSW graphs
+Product Quantization
+Hybrid search (sparse + dense)
+Tiered storage
+
+Design challenges:
+
+Cross-region replication
+Consistency vs latency
+Index rebuilds vs live ingestion
+Query routing
+
+For global RAG, index locality is critical.
+
+Page 9 — RAG Pipeline Overview
+
+A full RAG system includes:
+
+Document ingestion
+Chunking & embedding
+Vector storage
+Query embedding
+Retriever
+Ranker (cross-encoder)
+Context selection
+LLM synthesis
+
+Common architectures:
+
+Classic RAG (single pass)
+Reranked RAG
+Fusion architectures
+Graph-RAG / Knowledge Graph RAG
+Agentic RAG with tools
+Page 10 — Safety & Guardrail Layer
+
+Global AI platforms must implement:
+
+Prompt filtering
+Toxicity classifier
+PII detection
+Hallucination risk scoring
+Output moderation
+Red teaming rulesets
+Tenant-tier policies
+
+Moderation is often a separate model that runs before and after the LLM.
